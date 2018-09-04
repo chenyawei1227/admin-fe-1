@@ -1,104 +1,117 @@
 /*
 * @Author: Rosen
-* @Date:   2016-11-20 13:19:28
+* @Date:   2018-01-13 11:26:52
 * @Last Modified by:   Rosen
-* @Last Modified time: 2017-03-21 18:13:41
-* 知识点：css单独打包、全局jquery引用、各种loader
+* @Last Modified time: 2018-02-07 10:35:01
 */
+const path              = require('path');
+const webpack           = require('webpack');
+const HtmlWebpackPlugin = require('html-webpack-plugin');
+const ExtractTextPlugin = require('extract-text-webpack-plugin');
 
-var webpack             = require('webpack');
-var path                = require('path');
-var ExtractTextPlugin   = require('extract-text-webpack-plugin');
-var HtmlWebpackPlugin   = require('html-webpack-plugin');
-
-// 环境变量, dev, (test), online
-var WEBPACK_ENV            = process.env.WEBPACK_ENV || 'dev'; 
-
-// webpack config
-var config = {
-    entry:{
-        'app'       : ['./src/index.jsx']
-    },
-    externals:{
-        '$'         :'window.jQuery',
-        'jquery'    :'window.jQuery'
-    },
-    // path && publickPath
+let WEBPACK_ENV = process.env.WEBPACK_ENV || 'dev';
+console.log(WEBPACK_ENV); 
+module.exports = {
+    entry: './src/app.jsx',
     output: {
-        path        : __dirname + '/dist/',
-        publicPath  : WEBPACK_ENV === 'online' ? '//s.mmall.com/admin_fe/dist/' : '/dist/',
-        filename    : 'js/[name].js'
+        path: path.resolve(__dirname, 'dist'),
+        publicPath: WEBPACK_ENV === 'dev' 
+            ? '/dist/' : '//s.jianliwu.com/admin-v2-fe/dist/',
+        filename: 'js/app.js'
     },
     resolve: {
-        alias: {
-            node_modules    : path.join(__dirname, '/node_modules'),
-            lib             : path.join(__dirname, '/src/lib'),
-            util            : path.join(__dirname, '/src/util'),
-            component       : path.join(__dirname, '/src/component'),
-            service         : path.join(__dirname, '/src/service'),
-            page            : path.join(__dirname, '/src/page'),
+        alias : {
+            page        : path.resolve(__dirname, 'src/page'),
+            component   : path.resolve(__dirname, 'src/component'),
+            util        : path.resolve(__dirname, 'src/util'),
+            service     : path.resolve(__dirname, 'src/service')
         }
     },
     module: {
-        // noParse: [],
-        loaders: [
-            {test: /\.css$/, loader: ExtractTextPlugin.extract({
-                use: 'css-loader',
-                fallback : 'style-loader'
-            })},
-            {test: /\.scss$/, loader: ExtractTextPlugin.extract({
-                use: 'css-loader!sass-loader',
-                fallback : 'style-loader'
-            })},
-            {test: /\.(gif|jpg|png|woff|svg|eot|ttf)\??.*$/, loader: 'url-loader?limit=20000&name=resource/[name].[ext]'},
-            {test: /\.(string)$/, loader: 'html-loader' },
+        rules: [
+            // react(jsx)语法的处理
             {
-                test: /\.js?$/,
+                test: /\.jsx$/,
                 exclude: /(node_modules)/,
-                loader: 'babel-loader',
-                query: {
-                    presets: ['es2015']
+                use: {
+                    loader: 'babel-loader',
+                    options: {
+                        presets: ['env', 'react']
+                    }
                 }
             },
+            // css文件的处理
             {
-                test: /\.jsx?$/,
-                exclude: /(node_modules)/,
-                loader: 'babel-loader',
-                query: {
-                    presets: ['react', 'es2015']
-                }
+                test: /\.css$/,
+                use: ExtractTextPlugin.extract({
+                    fallback: "style-loader",
+                    use: "css-loader"
+                })
             },
+            // sass文件的处理
+            {
+                test: /\.scss$/,
+                use: ExtractTextPlugin.extract({
+                    fallback: 'style-loader',
+                    use: ['css-loader', 'sass-loader']
+                })
+            },
+            // 图片的配置
+            {
+                test: /\.(png|jpg|gif)$/,
+                use: [
+                    {
+                        loader: 'url-loader',
+                        options: {
+                            limit: 8192,
+                            name: 'resource/[name].[ext]'
+                        }
+                    }
+                ]
+            },
+            // 字体图标的配置
+            {
+                test: /\.(eot|svg|ttf|woff|woff2|otf)$/,
+                use: [
+                    {
+                        loader: 'url-loader',
+                        options: {
+                            limit: 8192,
+                            name: 'resource/[name].[ext]'
+                        }
+                    }
+                ]
+            }
         ]
     },
     plugins: [
-        // 提出公共部分 
-        new webpack.optimize.CommonsChunkPlugin({
-            name        : 'vendors',
-            filename    : 'js/base.js'
-        }),
-        // 单独处理css
-        new ExtractTextPlugin('css/[name].css'),
-        // html 加载
+        // 处理html文件 
         new HtmlWebpackPlugin({
-            filename        : 'view/index.html',
-            title           : 'MMall 后台管理系统',
-            template        : './src/index.html',
-            favicon         : './favicon.ico',
-            inject          : true,
-            hash            : true,
-            chunks          : ['vendors', 'app'],
-            chunksSortMode  : 'dependency',
-            minify          : {
-                removeComments: true,
-                collapseWhitespace: false
-            }
+            template: './src/index.html',
+            favicon: './favicon.ico'
         }),
-    ]
+        // 独立css文件
+        new ExtractTextPlugin("css/[name].css"),
+        // 提出公共模块
+        new webpack.optimize.CommonsChunkPlugin({
+            name : 'common',
+            filename: 'js/base.js'
+        })
+    ],
+    devServer: {
+        port: 8086,
+        historyApiFallback: {
+            index: '/dist/index.html'
+        },
+        proxy : {
+            '/manage' : {
+                target: 'http://admintest.happymmall.com',
+                changeOrigin : true
+            },
+            '/user/logout.do' : {
+                target: 'http://admintest.happymmall.com',
+                changeOrigin : true
+            }
+        }
+    }
 };
-
-// 开发环境下，使用devServer热加载
-if(WEBPACK_ENV === 'dev'){
-    config.entry.app.push('webpack-dev-server/client?http://localhost:8086');
-}
-
-module.exports = config;
